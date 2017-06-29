@@ -4,7 +4,6 @@ import csv
 import logging
 import os
 import time
-# import statistics
 import sys
 
 root = logging.getLogger()
@@ -48,7 +47,8 @@ def process_actions(action_data):
 
 
 def analyse_processed_action_data(processed_action_data):
-    player1_data = []
+    player1_apm_data = []
+    player1_attack_data = []
     player1_min_apm = sys.maxsize
     player1_max_apm = 0
 
@@ -56,12 +56,17 @@ def analyse_processed_action_data(processed_action_data):
         num_of_actions = len(actions)
         apm = num_of_actions * (60 / (WINDOW_SIZE * FRAME_DURATION))
 
-        player1_data.append(apm)
-
+        player1_apm_data.append(apm)
         player1_min_apm = apm if apm < player1_min_apm else player1_min_apm
         player1_max_apm = apm if apm > player1_max_apm else player1_max_apm
 
-    player1_avg_apm = sum(player1_data) / len(player1_data)
+        num_of_attacks = 0
+        for action in actions:
+            if int(action[3]) == 8 or int(action[3]) == 14:
+                num_of_attacks = num_of_attacks + 1
+        player1_attack_data.append(num_of_attacks)
+
+    player1_avg_apm = sum(player1_apm_data) / len(player1_apm_data)
     player1_bot = True if player1_avg_apm > BOT_THRESHOLD else False
 
     player1 = argparse.Namespace(
@@ -71,7 +76,8 @@ def analyse_processed_action_data(processed_action_data):
         bot=player1_bot
     )
 
-    player2_data = []
+    player2_apm_data = []
+    player2_attack_data = []
     player2_min_apm = 0
     player2_max_apm = 0
 
@@ -79,12 +85,17 @@ def analyse_processed_action_data(processed_action_data):
         num_of_actions = len(actions)
         apm = num_of_actions * (60 / (WINDOW_SIZE * FRAME_DURATION))
 
-        player2_data.append(apm)
-
+        player2_apm_data.append(apm)
         player2_min_apm = apm if apm < player2_min_apm else player2_min_apm
         player2_max_apm = apm if apm > player2_max_apm else player2_max_apm
 
-    player2_avg_apm = sum(player2_data) / len(player2_data)
+        num_of_attacks = 0
+        for action in actions:
+            if int(action[3]) == 8 or int(action[3]) == 14:
+                num_of_attacks = num_of_attacks + 1
+        player2_attack_data.append(num_of_attacks)
+
+    player2_avg_apm = sum(player2_apm_data) / len(player2_apm_data)
     player2_bot = True if player2_avg_apm > BOT_THRESHOLD else False
 
     player2 = argparse.Namespace(
@@ -94,25 +105,48 @@ def analyse_processed_action_data(processed_action_data):
         bot=player2_bot
     )
 
-    return player1, player1_data, player2, player2_data, None
+    return player1, player1_apm_data, player1_attack_data, \
+           player2, player2_apm_data, player2_attack_data
 
 
 def make_apm_graph(player1_data, player2_data, location):
     import matplotlib.pyplot as plt
 
+    fig_apm = plt.figure()
+    ax1 = fig_apm.add_subplot(111)
     x1 = [x * FRAME_DURATION * WINDOW_SIZE for x in range(0, len(player1_data))]
     x2 = [x * FRAME_DURATION * WINDOW_SIZE for x in range(0, len(player2_data))]
-    bot_line, = plt.plot([0, max(max(x1, x2))], [BOT_THRESHOLD, BOT_THRESHOLD])
+    bot_line, = ax1.plot([0, max(max(x1, x2))], [BOT_THRESHOLD, BOT_THRESHOLD])
     bot_line.set_label('Bot Threshold')
-    player1_line, = plt.plot(x1, player1_data)
+    player1_line, = ax1.plot(x1, player1_data)
     player1_line.set_label('Player 1 APM')
-    player2_line, = plt.plot(x2, player2_data)
+    player2_line, = ax1.plot(x2, player2_data)
     player2_line.set_label('Player 2 APM')
-    plt.xlabel('Time in seconds')
-    plt.ylabel('Actions per minute')
-    plt.legend()
-    plt.savefig(location + '/apm.png')
+    ax1.set_title('APM')
+    ax1.set_xlabel('Time in seconds')
+    ax1.set_ylabel('Actions per minute')
+    ax1.legend()
+    fig_apm.savefig(location + '/apm.png')
     logging.info('APM graph saved in: {location}/apm.png'.format(location=location))
+
+
+def make_attack_graph(player1_data, player2_data, location):
+    import matplotlib.pyplot as plt
+
+    fig_attack = plt.figure()
+    ax1 = fig_attack.add_subplot(111)
+    x1 = [x * FRAME_DURATION * WINDOW_SIZE for x in range(0, len(player1_data))]
+    x2 = [x * FRAME_DURATION * WINDOW_SIZE for x in range(0, len(player2_data))]
+    player1_line, = ax1.plot(x1, player1_data)
+    player1_line.set_label('Player 1 Attacks')
+    player2_line, = ax1.plot(x2, player2_data)
+    player2_line.set_label('Player 2 Attacks')
+    ax1.set_title('Attacks')
+    ax1.set_xlabel('Time in seconds')
+    ax1.set_ylabel('Attacks per frame')
+    ax1.legend()
+    fig_attack.savefig(location + '/attack.png')
+    logging.info('APM graph saved in: {location}/attack.png'.format(location=location))
 
 
 def main():
@@ -136,13 +170,17 @@ def main():
     logging.info('Players: {player_data[0][0]} vs {player_data[1][0]}'.format(player_data=player_data))
 
     processed_action_data = process_actions(action_data)
-    player1, player1_data, player2, player2_data, game_data = analyse_processed_action_data(processed_action_data)
+
+    player1, player1_apm_data, player1_attack_data, \
+    player2, player2_apm_data, player2_attack_data = analyse_processed_action_data(processed_action_data)
+
     logging.info(
         'Player 1: min {player.min}, avg {player.avg}, max {player.max}, bot {player.bot}'.format(player=player1))
     logging.info(
         'Player 2: min {player.min}, avg {player.avg}, max {player.max}, bot {player.bot}'.format(player=player2))
 
-    make_apm_graph(player1_data, player2_data, args.folder)
+    make_apm_graph(player1_apm_data, player2_apm_data, args.folder)
+    make_attack_graph(player1_attack_data, player2_attack_data, args.folder)
 
     end = time.time()
     logging.info('Finished in {time} seconds'.format(time=end - start))
