@@ -5,6 +5,7 @@ import logging
 import os
 import time
 import sys
+import numpy as np
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -26,6 +27,7 @@ def data_from_csv(folder_location):
 WINDOW_SIZE = 100
 FRAME_DURATION = 0.042
 BOT_THRESHOLD = 400
+DISTANCE_THRESHOLD = 50
 
 
 def process_actions(action_data):
@@ -49,6 +51,8 @@ def process_actions(action_data):
 def analyse_processed_action_data(processed_action_data):
     player1_apm_data = []
     player1_attack_data = []
+    player1_x_data = []
+    player1_y_data = []
     player1_min_apm = sys.maxsize
     player1_max_apm = 0
 
@@ -61,10 +65,22 @@ def analyse_processed_action_data(processed_action_data):
         player1_max_apm = apm if apm > player1_max_apm else player1_max_apm
 
         num_of_attacks = 0
+        x_list = []
+        y_list = []
         for action in actions:
             if int(action[3]) == 8 or int(action[3]) == 14:
                 num_of_attacks = num_of_attacks + 1
+
+            x_coord = int(action[6])
+            y_coord = int(action[7])
+            x_list.append(x_coord)
+            y_list.append(y_coord)
+
         player1_attack_data.append(num_of_attacks)
+        x_mean = np.average(x_list)
+        y_mean = np.average(y_list)
+        player1_x_data.append(int(x_mean))
+        player1_y_data.append(int(y_mean))
 
     player1_avg_apm = sum(player1_apm_data) / len(player1_apm_data)
     player1_bot = True if player1_avg_apm > BOT_THRESHOLD else False
@@ -78,6 +94,8 @@ def analyse_processed_action_data(processed_action_data):
 
     player2_apm_data = []
     player2_attack_data = []
+    player2_x_data = []
+    player2_y_data = []
     player2_min_apm = 0
     player2_max_apm = 0
 
@@ -90,10 +108,22 @@ def analyse_processed_action_data(processed_action_data):
         player2_max_apm = apm if apm > player2_max_apm else player2_max_apm
 
         num_of_attacks = 0
+        x_list = []
+        y_list = []
         for action in actions:
             if int(action[3]) == 8 or int(action[3]) == 14:
                 num_of_attacks = num_of_attacks + 1
+
+            x_coord = int(action[6])
+            y_coord = int(action[7])
+            x_list.append(x_coord)
+            y_list.append(y_coord)
+
         player2_attack_data.append(num_of_attacks)
+        x_mean = np.average(x_list)
+        y_mean = np.average(y_list)
+        player2_x_data.append(int(x_mean))
+        player2_y_data.append(int(y_mean))
 
     player2_avg_apm = sum(player2_apm_data) / len(player2_apm_data)
     player2_bot = True if player2_avg_apm > BOT_THRESHOLD else False
@@ -105,8 +135,8 @@ def analyse_processed_action_data(processed_action_data):
         bot=player2_bot
     )
 
-    return player1, player1_apm_data, player1_attack_data, \
-           player2, player2_apm_data, player2_attack_data
+    return player1, player1_apm_data, player1_attack_data, player1_x_data, player1_y_data, \
+           player2, player2_apm_data, player2_attack_data, player2_x_data, player2_y_data
 
 
 def make_apm_graph(player1_data, player2_data, location):
@@ -149,6 +179,27 @@ def make_attack_graph(player1_data, player2_data, location):
     logging.info('APM graph saved in: {location}/attack.png'.format(location=location))
 
 
+def make_location_graph(player1_x_data, player1_y_data, player2_x_data, player2_y_data, common_coords, location):
+    import matplotlib.pyplot as plt
+
+    x, y = zip(*common_coords)
+
+    fig_location = plt.figure()
+    ax1 = fig_location.add_subplot(111)
+    player1_line = ax1.scatter(player1_x_data, player1_y_data)
+    player1_line.set_label('Player 1 Location')
+    player2_line = ax1.scatter(player2_x_data, player2_y_data)
+    player2_line.set_label('Player 2 Location')
+    common_line = ax1.scatter(list(x), list(y))
+    common_line.set_label('Common Location')
+    ax1.set_title('Location')
+    ax1.set_xlabel('X Coord')
+    ax1.set_ylabel('Y Coord')
+    ax1.legend()
+    fig_location.savefig(location + '/location.png')
+    logging.info('APM graph saved in: {location}/location.png'.format(location=location))
+
+
 def main():
     logging.info('Started')
     start = time.time()
@@ -171,8 +222,9 @@ def main():
 
     processed_action_data = process_actions(action_data)
 
-    player1, player1_apm_data, player1_attack_data, \
-    player2, player2_apm_data, player2_attack_data = analyse_processed_action_data(processed_action_data)
+    player1, player1_apm_data, player1_attack_data, player1_x_data, player1_y_data, \
+    player2, player2_apm_data, player2_attack_data, player2_x_data, player2_y_data \
+        = analyse_processed_action_data(processed_action_data)
 
     logging.info(
         'Player 1: min {player.min}, avg {player.avg}, max {player.max}, bot {player.bot}'.format(player=player1))
@@ -181,6 +233,15 @@ def main():
 
     make_apm_graph(player1_apm_data, player2_apm_data, args.folder)
     make_attack_graph(player1_attack_data, player2_attack_data, args.folder)
+
+    common_coords = [
+        (np.average([ax, bx]), np.average([ay, by]))
+        for (ax, ay), (bx, by)
+        in zip(zip(player1_x_data, player1_y_data), zip(player2_x_data, player2_y_data))
+        if abs(ax - bx) < DISTANCE_THRESHOLD and abs(ay - by) < DISTANCE_THRESHOLD
+    ]
+
+    make_location_graph(player1_x_data, player1_y_data, player2_x_data, player2_y_data, common_coords, args.folder)
 
     end = time.time()
     logging.info('Finished in {time} seconds'.format(time=end - start))
