@@ -84,7 +84,7 @@ def analyse_processed_action_data(processed_action_data):
         player2_min_apm = apm if apm < player2_min_apm else player2_min_apm
         player2_max_apm = apm if apm > player2_max_apm else player2_max_apm
 
-    player2_avg_apm = sum(player2_data)/len(player2_data)
+    player2_avg_apm = sum(player2_data) / len(player2_data)
     player2_bot = True if player2_avg_apm > BOT_THRESHOLD else False
 
     player2 = argparse.Namespace(
@@ -94,7 +94,25 @@ def analyse_processed_action_data(processed_action_data):
         bot=player2_bot
     )
 
-    return player1, player2, None
+    return player1, player1_data, player2, player2_data, None
+
+
+def make_apm_graph(player1_data, player2_data, location):
+    import matplotlib.pyplot as plt
+
+    x1 = [x * FRAME_DURATION * WINDOW_SIZE for x in range(0, len(player1_data))]
+    x2 = [x * FRAME_DURATION * WINDOW_SIZE for x in range(0, len(player2_data))]
+    bot_line, = plt.plot([0, max(max(x1, x2))], [BOT_THRESHOLD, BOT_THRESHOLD])
+    bot_line.set_label('Bot Threshold')
+    player1_line, = plt.plot(x1, player1_data)
+    player1_line.set_label('Player 1 APM')
+    player2_line, = plt.plot(x2, player2_data)
+    player2_line.set_label('Player 2 APM')
+    plt.xlabel('Time in seconds')
+    plt.ylabel('Actions per minute')
+    plt.legend()
+    plt.savefig(location + '/apm.png')
+    logging.info('APM graph saved in: {location}/apm.png'.format(location=location))
 
 
 def main():
@@ -118,12 +136,13 @@ def main():
     logging.info('Players: {player_data[0][0]} vs {player_data[1][0]}'.format(player_data=player_data))
 
     processed_action_data = process_actions(action_data)
-    player1, player2, game_data = analyse_processed_action_data(processed_action_data)
-
+    player1, player1_data, player2, player2_data, game_data = analyse_processed_action_data(processed_action_data)
     logging.info(
         'Player 1: min {player.min}, avg {player.avg}, max {player.max}, bot {player.bot}'.format(player=player1))
     logging.info(
         'Player 2: min {player.min}, avg {player.avg}, max {player.max}, bot {player.bot}'.format(player=player2))
+
+    make_apm_graph(player1_data, player2_data, args.folder)
 
     end = time.time()
     logging.info('Finished in {time} seconds'.format(time=end - start))
