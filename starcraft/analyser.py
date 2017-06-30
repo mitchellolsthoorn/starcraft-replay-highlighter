@@ -28,6 +28,7 @@ WINDOW_SIZE = 100
 FRAME_DURATION = 0.042
 BOT_THRESHOLD = 400
 DISTANCE_THRESHOLD = 100
+COMPRESSION_LENGTH = 2 #in windows, highlights that are within COMPRESSION_LENGTH windows of eachother will be merged.
 
 
 def process_actions(action_data):
@@ -238,7 +239,7 @@ def attack_highlights(attacks):
 	for amount, frame in attacks:
 		average_attack_amount += amount
 
-	average_attack_amount = average_attack_amount / float( len(attacks) )
+	average_attack_amount = average_attack_amount / len(attacks)
 
 	return filter(lambda x: x[0] > average_attack_amount, attacks)
 
@@ -254,6 +255,20 @@ def extract_duplicates(windows):
 		else:
 			seen.add(x)
 	return sorted(duplicates.items())
+
+def compress_highlights(highlights):
+	delete = []
+
+
+	for i, val in enumerate(highlights[:-1]):
+		if highlights[i+1] - highlights[i] <= COMPRESSION_LENGTH:
+			highlights[i+1] = int( (highlights[i+1] + highlights[i]) / 2)
+			delete.append(i)
+			
+	for i in reversed(delete):
+		del highlights[i]
+
+	return highlights
 
 
 def main():
@@ -317,17 +332,31 @@ def main():
     # Highlighting
     p1_apm_windows = player1.max[1]
     p2_apm_windows = player2.max[1]
-    _, p1_attack_windows = zip(*attack_highlights(player1_attack))
-    _, p2_attack_windows = zip(*attack_highlights(player2_attack))
+
+
+    print '===='
+    #print player1_attack_windows
+    print attack_highlights(player1_attack)
+    print attack_highlights(player2_attack)
+    print '===='
+
+    #_, p1_attack_windows = zip(*attack_highlights(player1_attack))
+    #_, p2_attack_windows = zip(*attack_highlights(player2_attack))
+    p1_attack_windows = player1_attack_windows
+    p2_attack_windows = player2_attack_windows
+
     common_windows = common_windows
 
     potential_interest = [p1_apm_windows] + [p2_apm_windows] + list(p1_attack_windows) + list(player2_attack_windows) + common_windows
     interest = extract_duplicates(potential_interest)
 
     if(len(interest) <= 3):
+    	logging.info('Too few actual highlights. Added the potential highlights.')
     	windows = sorted(potential_interest)
     else:
     	windows, _ = zip(*interest)
+
+    windows = compress_highlights(list(windows))
 
     print 'Highlighting windows: ' + str(windows)
     print 'Highlighting times: ' + str(map(formatTime, map(lambda x: x * FRAME_DURATION * WINDOW_SIZE, windows)))
