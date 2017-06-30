@@ -79,6 +79,7 @@ def analyse_processed_action_data(processed_action_data):
 
             x_coord = int(action[6])
             y_coord = int(action[7])
+            #print '({x},{y}) '.format(x=x_coord, y=y_coord)
             x_list.append(x_coord)
             y_list.append(y_coord)
 
@@ -87,6 +88,9 @@ def analyse_processed_action_data(processed_action_data):
         y_mean = np.average(y_list)
         player1_x_data.append(int(x_mean))
         player1_y_data.append(int(y_mean))
+        #print 'Avg: ({x},{y}) '.format(x=x_mean, y=y_mean)
+        #print '======'
+
         player1_attack_x_data = player1_attack_x_data + attack_x_data
         player1_attack_y_data = player1_attack_y_data + attack_y_data
 
@@ -221,6 +225,37 @@ def make_location_graph(player1_x_data, player1_y_data, player2_x_data, player2_
     logging.info('APM graph saved in: {location}/location.png'.format(location=location))
 
 
+def formatTime(seconds):
+	minutes = int(seconds / 60)
+	sec = int(seconds % 60) 
+	if sec < 10:
+		sec = '0' + str(sec)
+	return '{minutes}:{seconds}'.format(minutes=minutes, seconds=sec)
+
+def attack_highlights(attacks):
+	average_attack_amount = 0
+
+	for amount, frame in attacks:
+		average_attack_amount += amount
+
+	average_attack_amount = average_attack_amount / float( len(attacks) )
+
+	return filter(lambda x: x[0] > average_attack_amount, attacks)
+
+def extract_duplicates(windows):
+	seen = set()
+	duplicates = dict()
+	for x in windows:
+		if x in seen:
+			if x in duplicates:
+				duplicates[x] += 1
+			else:
+				duplicates[x] = 1
+		else:
+			seen.add(x)
+	return sorted(duplicates.items())
+
+
 def main():
     logging.info('Started')
     start = time.time()
@@ -282,15 +317,21 @@ def main():
     # Highlighting
     p1_apm_windows = player1.max[1]
     p2_apm_windows = player2.max[1]
-    p1_attack_windows = player1_attack_windows
-    p2_attack_windows = player2_attack_windows
+    _, p1_attack_windows = zip(*attack_highlights(player1_attack))
+    _, p2_attack_windows = zip(*attack_highlights(player2_attack))
     common_windows = common_windows
 
-    windows = [p1_apm_windows] + [p2_apm_windows] + p1_attack_windows + p2_attack_windows + common_windows
-    windows = sorted(windows)
-    print 'Highlighting windows: ' + str(windows)
-    print 'Highlighting times: ' + str(map(lambda x: x * FRAME_DURATION * WINDOW_SIZE, windows))
+    potential_interest = [p1_apm_windows] + [p2_apm_windows] + list(p1_attack_windows) + list(player2_attack_windows) + common_windows
+    interest = extract_duplicates(potential_interest)
 
+    if(len(interest) <= 3):
+    	windows = sorted(potential_interest)
+    else:
+    	windows, _ = zip(*interest)
+
+    print 'Highlighting windows: ' + str(windows)
+    print 'Highlighting times: ' + str(map(formatTime, map(lambda x: x * FRAME_DURATION * WINDOW_SIZE, windows)))
+   
     # End
     end = time.time()
     logging.info('Finished in {time} seconds'.format(time=end - start))
