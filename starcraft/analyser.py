@@ -264,7 +264,7 @@ def compress_highlights(highlights):
 		if highlights[i+1] - highlights[i] <= COMPRESSION_LENGTH:
 			highlights[i+1] = int( (highlights[i+1] + highlights[i]) / 2)
 			delete.append(i)
-			
+
 	for i in reversed(delete):
 		del highlights[i]
 
@@ -332,13 +332,6 @@ def main():
     # Highlighting
     p1_apm_windows = player1.max[1]
     p2_apm_windows = player2.max[1]
-
-
-    print '===='
-    #print player1_attack_windows
-    print attack_highlights(player1_attack)
-    print attack_highlights(player2_attack)
-    print '===='
 
     #_, p1_attack_windows = zip(*attack_highlights(player1_attack))
     #_, p2_attack_windows = zip(*attack_highlights(player2_attack))
