@@ -9,7 +9,7 @@ Please note we have a code of conduct, please follow it in all your interactions
 
 ## Pull Request Process
 
-1. Update the README.md with details of changes to the interface, this includes chnages of installation, usage and useful file locations
+1. Update the README.md with details of changes to the interface, this includes changes of installation, usage and useful file locations
 
 ## Code of Conduct
 
@@ -68,7 +68,7 @@ further defined and clarified by project maintainers.
 ### Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported by contacting the project team at [mitchell.olsthoorn@outlook.com]. All
+reported by contacting the project team at mitchell (dot) olsthoorn (at) outlook (dot) com. All
 complaints will be reviewed and investigated and will result in a response that
 is deemed necessary and appropriate to the circumstances. The project team is
 obligated to maintain confidentiality with regard to the reporter of an incident.
