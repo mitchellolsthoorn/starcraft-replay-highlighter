@@ -6,6 +6,7 @@ import os
 import time
 import sys
 import numpy as np
+import itertools
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -28,7 +29,7 @@ WINDOW_SIZE = 100
 FRAME_DURATION = 0.042
 BOT_THRESHOLD = 400
 DISTANCE_THRESHOLD = 100
-
+LOCATION_IMAGE_COUNT = 10
 
 def process_actions(action_data):
     game_data = {0: dict(), 1: dict()}
@@ -48,7 +49,16 @@ def process_actions(action_data):
     return game_data
 
 
-def analyse_processed_action_data(processed_action_data):
+def find_common_coords(player1_x_data, player1_y_data, player2_x_data, player2_y_data):
+    return [
+        (np.average([ax, bx]), np.average([ay, by]), ax, ay, bx, by)
+        for (ax, ay), (bx, by)
+        in zip(zip(player1_x_data, player1_y_data), zip(player2_x_data, player2_y_data))
+        if abs(ax - bx) < DISTANCE_THRESHOLD and abs(ay - by) < DISTANCE_THRESHOLD
+        ]
+
+
+def analyse_processed_action_data(processed_action_data, folder):
     player1_apm_data = []
     player1_attack_data = []
     player1_x_data = []
@@ -57,48 +67,6 @@ def analyse_processed_action_data(processed_action_data):
     player1_attack_y_data = []
     player1_min_apm = (sys.maxsize, 0)
     player1_max_apm = (0, 0)
-
-    for window_number, actions in processed_action_data[0].iteritems():
-        num_of_actions = len(actions)
-        apm = num_of_actions * (60 / (WINDOW_SIZE * FRAME_DURATION))
-
-        player1_apm_data.append(apm)
-        player1_min_apm = (apm, window_number) if apm < player1_min_apm[0] else player1_min_apm
-        player1_max_apm = (apm, window_number) if apm > player1_max_apm[0] else player1_max_apm
-
-        num_of_attacks = 0
-        attack_x_data = []
-        attack_y_data = []
-        x_list = []
-        y_list = []
-        for action in actions:
-            if int(action[3]) == 8 or int(action[3]) == 14:
-                num_of_attacks = num_of_attacks + 1
-                attack_x_data.append(int(action[6]))
-                attack_y_data.append(int(action[7]))
-
-            x_coord = int(action[6])
-            y_coord = int(action[7])
-            x_list.append(x_coord)
-            y_list.append(y_coord)
-
-        player1_attack_data.append(num_of_attacks)
-        x_mean = np.average(x_list)
-        y_mean = np.average(y_list)
-        player1_x_data.append(int(x_mean))
-        player1_y_data.append(int(y_mean))
-        player1_attack_x_data = player1_attack_x_data + attack_x_data
-        player1_attack_y_data = player1_attack_y_data + attack_y_data
-
-    player1_avg_apm = sum(player1_apm_data) / len(player1_apm_data)
-    player1_bot = True if player1_avg_apm > BOT_THRESHOLD else False
-
-    player1 = argparse.Namespace(
-        max=player1_max_apm,
-        min=player1_min_apm,
-        avg=player1_avg_apm,
-        bot=player1_bot
-    )
 
     player2_apm_data = []
     player2_attack_data = []
@@ -109,37 +77,106 @@ def analyse_processed_action_data(processed_action_data):
     player2_min_apm = (sys.maxsize, 0)
     player2_max_apm = (0, 0)
 
-    for window_number, actions in processed_action_data[1].iteritems():
-        num_of_actions = len(actions)
-        apm = num_of_actions * (60 / (WINDOW_SIZE * FRAME_DURATION))
+    a = itertools.islice(processed_action_data[0].iteritems(), 0, 10)
 
-        player2_apm_data.append(apm)
-        player2_min_apm = (apm, window_number) if apm < player2_min_apm[0] else player2_min_apm
-        player2_max_apm = (apm, window_number) if apm > player2_max_apm[0] else player2_max_apm
+    player1_length = len(processed_action_data[0])
+    player2_length = len(processed_action_data[1])
+    player_longest = max(player1_length,player2_length)
 
-        num_of_attacks = 0
-        attack_x_data = []
-        attack_y_data = []
-        x_list = []
-        y_list = []
-        for action in actions:
-            if int(action[3]) == 8 or int(action[3]) == 14:
-                num_of_attacks = num_of_attacks + 1
-                attack_x_data.append(int(action[6]))
-                attack_y_data.append(int(action[7]))
+    for loops in range(0,LOCATION_IMAGE_COUNT):
+        threshold = sys.maxsize
+        breaker1 = 0
+        breaker2 = 0
+        if range != 5:
+            threshold = int((player_longest/LOCATION_IMAGE_COUNT)*loops)
+        for window_number, actions in processed_action_data[0].iteritems():
+            if breaker1 >= threshold:
+                break #iiiieeeuww
 
-            x_coord = int(action[6])
-            y_coord = int(action[7])
-            x_list.append(x_coord)
-            y_list.append(y_coord)
+            num_of_actions = len(actions)
+            apm = num_of_actions * (60 / (WINDOW_SIZE * FRAME_DURATION))
 
-        player2_attack_data.append(num_of_attacks)
-        x_mean = np.average(x_list)
-        y_mean = np.average(y_list)
-        player2_x_data.append(int(x_mean))
-        player2_y_data.append(int(y_mean))
-        player2_attack_x_data = player2_attack_x_data + attack_x_data
-        player2_attack_y_data = player2_attack_y_data + attack_y_data
+            player1_apm_data.append(apm)
+            player1_min_apm = (apm, window_number) if apm < player1_min_apm[0] else player1_min_apm
+            player1_max_apm = (apm, window_number) if apm > player1_max_apm[0] else player1_max_apm
+
+            num_of_attacks = 0
+            attack_x_data = []
+            attack_y_data = []
+            x_list = []
+            y_list = []
+            for action in actions:
+                if int(action[3]) == 8 or int(action[3]) == 14:
+                    num_of_attacks = num_of_attacks + 1
+                    attack_x_data.append(int(action[6]))
+                    attack_y_data.append(int(action[7]))
+
+                x_coord = int(action[6])
+                y_coord = int(action[7])
+                x_list.append(x_coord)
+                y_list.append(y_coord)
+
+            player1_attack_data.append(num_of_attacks)
+            x_mean = np.average(x_list)
+            y_mean = np.average(y_list)
+            player1_x_data.append(int(x_mean))
+            player1_y_data.append(int(y_mean))
+            player1_attack_x_data = player1_attack_x_data + attack_x_data
+            player1_attack_y_data = player1_attack_y_data + attack_y_data
+
+            breaker1 += 1
+
+        for window_number, actions in processed_action_data[1].iteritems():
+            if breaker2 >= threshold:
+                break #iiiieeeuww
+
+            num_of_actions = len(actions)
+            apm = num_of_actions * (60 / (WINDOW_SIZE * FRAME_DURATION))
+
+            player2_apm_data.append(apm)
+            player2_min_apm = (apm, window_number) if apm < player2_min_apm[0] else player2_min_apm
+            player2_max_apm = (apm, window_number) if apm > player2_max_apm[0] else player2_max_apm
+
+            num_of_attacks = 0
+            attack_x_data = []
+            attack_y_data = []
+            x_list = []
+            y_list = []
+            for action in actions:
+                if int(action[3]) == 8 or int(action[3]) == 14:
+                    num_of_attacks = num_of_attacks + 1
+                    attack_x_data.append(int(action[6]))
+                    attack_y_data.append(int(action[7]))
+
+                x_coord = int(action[6])
+                y_coord = int(action[7])
+                x_list.append(x_coord)
+                y_list.append(y_coord)
+
+            player2_attack_data.append(num_of_attacks)
+            x_mean = np.average(x_list)
+            y_mean = np.average(y_list)
+            player2_x_data.append(int(x_mean))
+            player2_y_data.append(int(y_mean))
+            player2_attack_x_data = player2_attack_x_data + attack_x_data
+            player2_attack_y_data = player2_attack_y_data + attack_y_data
+
+            breaker2 += 1
+
+        common_coords = find_common_coords(player1_x_data, player1_y_data, player2_x_data, player2_y_data)
+        make_location_graph(player1_x_data, player1_y_data, player2_x_data, player2_y_data, player1_attack_x_data,
+                            player1_attack_y_data, player2_attack_x_data, player2_attack_y_data, common_coords,
+                            folder, threshold)
+
+    player1_avg_apm = sum(player1_apm_data) / len(player1_apm_data)
+    player1_bot = True if player1_avg_apm > BOT_THRESHOLD else False
+
+    player1 = argparse.Namespace(
+        max=player1_max_apm,
+        min=player1_min_apm,
+        avg=player1_avg_apm,
+        bot=player1_bot
+    )
 
     player2_avg_apm = sum(player2_apm_data) / len(player2_apm_data)
     player2_bot = True if player2_avg_apm > BOT_THRESHOLD else False
@@ -195,30 +232,31 @@ def make_attack_graph(player1_data, player2_data, location):
     logging.info('APM graph saved in: {location}/attack.png'.format(location=location))
 
 
-def make_location_graph(player1_x_data, player1_y_data, player2_x_data, player2_y_data, player1_attack_x_data, player1_attack_y_data, player2_attack_x_data, player2_attack_y_data, common_coords, location):
+def make_location_graph(player1_x_data, player1_y_data, player2_x_data, player2_y_data, player1_attack_x_data, player1_attack_y_data, player2_attack_x_data, player2_attack_y_data, common_coords, location, additive):
     import matplotlib.pyplot as plt
 
     fig_location = plt.figure()
     ax1 = fig_location.add_subplot(111)
-    player1_line = ax1.scatter(player1_x_data, player1_y_data)
+    player1_line = ax1.scatter(player1_x_data, player1_y_data, color='red')
     player1_line.set_label('Player 1 Location')
-    player2_line = ax1.scatter(player2_x_data, player2_y_data)
+    player2_line = ax1.scatter(player2_x_data, player2_y_data, color='blue')
     player2_line.set_label('Player 2 Location')
-    player2_line = ax1.scatter(player1_attack_x_data, player1_attack_y_data)
+    player2_line = ax1.scatter(player1_attack_x_data, player1_attack_y_data, color='darkorange')
     player2_line.set_label('Player 1 Attack Location')
-    player2_line = ax1.scatter(player2_attack_x_data, player2_attack_y_data)
-    player2_line.set_label('Player 2 Attack Location')
+    player2_line = ax1.scatter(player2_attack_x_data, player2_attack_y_data, color='purple')
+    player2_line.set_label('Player 2 Attack Location', )
     if len(common_coords) > 0:
         x, y, ax, ay, bx, by = zip(*common_coords)
-        common_line = ax1.scatter(list(x), list(y))
+        common_line = ax1.scatter(list(x), list(y), color='deepskyblue')
         common_line.set_label('Common Location')
     ax1.set_title('Location')
     ax1.set_xlabel('X Coord')
     ax1.set_ylabel('Y Coord')
-    ax1.legend()
+    lgd = ax1.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     fig_location.gca().invert_yaxis()
-    fig_location.savefig(location + '/location.png')
+    fig_location.savefig(location + '/location' + str(additive) + '.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
     logging.info('APM graph saved in: {location}/location.png'.format(location=location))
+
 
 
 def main():
@@ -246,7 +284,7 @@ def main():
 
     player1, player1_apm_data, player1_attack_data, player1_x_data, player1_y_data, player1_attack_x_data, player1_attack_y_data, \
     player2, player2_apm_data, player2_attack_data, player2_x_data, player2_y_data, player2_attack_x_data, player2_attack_y_data \
-        = analyse_processed_action_data(processed_action_data)
+        = analyse_processed_action_data(processed_action_data, args.folder)
 
     # APM info
     logging.info(
@@ -269,15 +307,10 @@ def main():
     logging.info('Attacks: {attack}'.format(attack=attacks))
 
     # Location info
-    common_coords = [
-        (np.average([ax, bx]), np.average([ay, by]), ax, ay, bx, by)
-        for (ax, ay), (bx, by)
-        in zip(zip(player1_x_data, player1_y_data), zip(player2_x_data, player2_y_data))
-        if abs(ax - bx) < DISTANCE_THRESHOLD and abs(ay - by) < DISTANCE_THRESHOLD
-    ]
+    common_coords = find_common_coords(player1_x_data, player1_y_data, player2_x_data, player2_y_data)
+
     common_windows = map(lambda coord: zip(player1_x_data, player1_y_data).index((coord[2], coord[3])), common_coords)
     logging.info('Common Coords: {coords}'.format(coords=zip(common_coords, common_windows)))
-    make_location_graph(player1_x_data, player1_y_data, player2_x_data, player2_y_data, player1_attack_x_data, player1_attack_y_data, player2_attack_x_data, player2_attack_y_data, common_coords, args.folder)
 
     # Highlighting
     p1_apm_windows = player1.max[1]
@@ -288,8 +321,8 @@ def main():
 
     windows = [p1_apm_windows] + [p2_apm_windows] + p1_attack_windows + p2_attack_windows + common_windows
     windows = sorted(windows)
-    print 'Highlighting windows: ' + str(windows)
-    print 'Highlighting times: ' + str(map(lambda x: x * FRAME_DURATION * WINDOW_SIZE, windows))
+    print( 'Highlighting windows: ' + str(windows))
+    print( 'Highlighting times: ' + str(map(lambda x: x * FRAME_DURATION * WINDOW_SIZE, windows)))
 
     # End
     end = time.time()
